@@ -450,7 +450,9 @@ public:
 			idx.rotate(i);
 			for (int t : p) {
 				isomorphic[i].push_back(idx.at(t));
+				
 			}
+
 		}
 	}
 	pattern(const pattern& p) = delete;
@@ -464,7 +466,10 @@ public:
 	 */
 	virtual float estimate(const board& b) const {
 		// TODO
-
+		float estValue=0;
+		for(int i = 0;i < iso_last;i++)
+			estValue+=(*this)[indexof(isomorphic[i],b)];
+		return estValue;
 	}
 
 	/**
@@ -472,7 +477,10 @@ public:
 	 */
 	virtual float update(const board& b, float u) {
 		// TODO
-
+		float updValue=0;
+		for(int i = 0;i < iso_last;i++)
+			updValue+=((*this)[indexof(isomorphic[i],b)]+=u);
+		return updValue;
 	}
 
 	/**
@@ -510,6 +518,11 @@ protected:
 
 	size_t indexof(const std::vector<int>& patt, const board& b) const {
 		// TODO
+		size_t index=0;
+        for(int i=0;i<patt.size();i++){
+            index|= b.at(patt[i])<<(i*4);
+        }
+        return index;
 	}
 
 	std::string nameof(const std::vector<int>& patt) const {
@@ -681,7 +694,7 @@ public:
 		for (state* move = after; move != after + 4; move++) {
 			if (move->assign(b)) {
 				// TODO
-
+				move->set_value(move->reward()+estimate(move->after_state()));
 				if (move->value() > best->value())
 					best = move;
 			} else {
@@ -708,7 +721,13 @@ public:
 	 */
 	void update_episode(std::vector<state>& path, float alpha = 0.1) const {
 		// TODO
-
+		float exact=0;
+        for(path.pop_back();path.size();path.pop_back()){
+            state& move=path.back();
+            // td_error = r + V(s'[t+1]) - V(s'[t])
+            float td_error=move.reward()+exact-move.value();
+            exact=move.reward()+update(move.after_state(),alpha*td_error);
+        }
 	}
 
 	/**
@@ -827,7 +846,7 @@ int main(int argc, const char* argv[]) {
 	learning tdl;
 
 	// set the learning parameters
-	float alpha = 0.1;
+	float alpha = 0.003125;
 	size_t total = 100000;
 	unsigned seed;
 	__asm__ __volatile__ ("rdtsc" : "=a" (seed));
@@ -843,7 +862,7 @@ int main(int argc, const char* argv[]) {
 	tdl.add_feature(new pattern({ 4, 5, 6, 8, 9, 10 }));
 
 	// restore the model from file
-	tdl.load("");
+	tdl.load("./weights.bin");
 
 	// train the model
 	std::vector<state> path;
@@ -856,6 +875,7 @@ int main(int argc, const char* argv[]) {
 		debug << "begin episode" << std::endl;
 		b.init();
 		while (true) {
+			
 			debug << "state" << std::endl << b;
 			state best = tdl.select_best_move(b);
 			path.push_back(best);
@@ -878,7 +898,7 @@ int main(int argc, const char* argv[]) {
 	}
 
 	// store the model into file
-	tdl.save("");
+	tdl.save("./weights.bin");
 
 	return 0;
 }
