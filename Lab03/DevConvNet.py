@@ -136,6 +136,7 @@ def plot(dataframe):
     return fig
 
 activations={'ReLU':nn.ReLU(),'LeakyReLU':nn.LeakyReLU(),'ELU':nn.ELU()}
+#activations={'ELU':nn.ELU(alpha=1)}
 df,best_model_wts=train_with_different_activation(loader_train,loader_test,activations,device)
 for name,model_wts in best_model_wts.items():
     torch.save(model_wts,os.path.join('DevConvNet models',name+'.pt'))
