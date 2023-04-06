@@ -844,9 +844,10 @@ private:
 int main(int argc, const char* argv[]) {
 	info << "TDL2048-Demo" << std::endl;
 	learning tdl;
-
+	std::ofstream result;
+	result.open("result.txt");
 	// set the learning parameters
-	float alpha = 0.003125;
+	float alpha = 0.01;
 	size_t total = 100000;
 	unsigned seed;
 	__asm__ __volatile__ ("rdtsc" : "=a" (seed));
@@ -895,8 +896,9 @@ int main(int argc, const char* argv[]) {
 		tdl.update_episode(path, alpha);
 		tdl.make_statistic(n, b, score);
 		path.clear();
+		result<<score<<std::endl;
 	}
-
+	result.close();
 	// store the model into file
 	tdl.save("./weights.bin");
 
