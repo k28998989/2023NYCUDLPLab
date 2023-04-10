@@ -477,10 +477,14 @@ public:
 	 */
 	virtual float update(const board& b, float u) {
 		// TODO
-		float updValue=0;
-		for(int i = 0;i < iso_last;i++)
-			updValue+=((*this)[indexof(isomorphic[i],b)]+=u);
-		return updValue;
+		float updated_value = 0;
+		for(const std::vector<int> iso: isomorphic) {
+			size_t index = indexof(iso, b);
+			weight[index] += u;
+			updated_value += weight[index];
+		}
+
+		return updated_value;
 	}
 
 	/**
@@ -624,7 +628,11 @@ private:
 	int score;
 	float esti;
 };
-
+bool is_terminal(board b) {
+	if(b.move(0) == -1 && b.move(1) == -1 && b.move(2) == -1 && b.move(3) == -1)
+		return true;
+	return false;
+}
 class learning {
 public:
 	learning() {}
@@ -694,8 +702,38 @@ public:
 		for (state* move = after; move != after + 4; move++) {
 			if (move->assign(b)) {
 				// TODO
-				move->set_value(move->reward()+estimate(move->after_state()));
-				if (move->value() > best->value())
+				float immediate_reward = move->reward();
+				float long_term_reward = 0;
+				int empty_squares = 0;
+
+
+				// Consider all possible state transitions 
+				for(int i = 0; i < 16; i++) {
+					board after_state = move->after_state();
+					// if that position is empty (0-tile), then it is possible that the new popup() tile can be there
+					if(after_state.at(i) == 0) {
+						empty_squares++;
+						board board_with_4tile = after_state;
+						board board_with_2tile = after_state;
+
+						board_with_4tile.set(i, 2);
+						board_with_2tile.set(i, 1);
+
+						// if the next state is terminal state, then there is no long term reward
+						if(!is_terminal(board_with_4tile)) {
+							long_term_reward += 0.1 * (this -> estimate(board_with_4tile));
+						}
+						if(!is_terminal(board_with_2tile)) {
+							long_term_reward += 0.9 * (this -> estimate(board_with_2tile)); 
+						}
+					}
+				}
+
+				if(empty_squares != 0)
+					move->set_value(immediate_reward + long_term_reward / empty_squares); // each square is equally likely to have a new popup tile
+
+				// update the cur best move, value() returns the esti
+				if (move->value() > best->value()) 
 					best = move;
 			} else {
 				move->set_value(-std::numeric_limits<float>::max());
@@ -721,13 +759,12 @@ public:
 	 */
 	void update_episode(std::vector<state>& path, float alpha = 0.1) const {
 		// TODO
-		float exact=0;
-        for(path.pop_back();path.size();path.pop_back()){
-            state& move=path.back();
-            // td_error = r + V(s'[t+1]) - V(s'[t])
-            float td_error=move.reward()+exact-move.value();
-            exact=move.reward()+update(move.after_state(),alpha*td_error);
-        }
+		float next_state_value = 0;
+		for(int i = path.size() - 2; i >= 0; i--) {
+			float TD_target = path[i].reward() + next_state_value;
+			float TD_error = TD_target - (this -> estimate(path[i].before_state()));
+			next_state_value = this -> update(path[i].before_state(), TD_error * alpha);
+		}
 	}
 
 	/**
