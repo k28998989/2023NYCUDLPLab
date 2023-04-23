@@ -628,11 +628,6 @@ private:
 	int score;
 	float esti;
 };
-bool is_terminal(board b) {
-	if(b.move(0) == -1 && b.move(1) == -1 && b.move(2) == -1 && b.move(3) == -1)
-		return true;
-	return false;
-}
 class learning {
 public:
 	learning() {}
@@ -703,34 +698,25 @@ public:
 			if (move->assign(b)) {
 				// TODO
 				float immediate_reward = move->reward();
-				float long_term_reward = 0;
+				float finalest_reward = 0;
 				int empty_squares = 0;
-
-
-				// Consider all possible state transitions 
 				for(int i = 0; i < 16; i++) {
 					board after_state = move->after_state();
-					// if that position is empty (0-tile), then it is possible that the new popup() tile can be there
 					if(after_state.at(i) == 0) {
 						empty_squares++;
+						//計算after_state產生4方塊的期望值
 						board board_with_4tile = after_state;
-						board board_with_2tile = after_state;
-
 						board_with_4tile.set(i, 2);
-						board_with_2tile.set(i, 1);
-
-						// if the next state is terminal state, then there is no long term reward
-						if(!is_terminal(board_with_4tile)) {
-							long_term_reward += 0.1 * (this -> estimate(board_with_4tile));
-						}
-						if(!is_terminal(board_with_2tile)) {
-							long_term_reward += 0.9 * (this -> estimate(board_with_2tile)); 
-						}
+						finalest_reward += 0.1 * (this -> estimate(board_with_4tile));
+						//計算after_state產生2方塊的期望值						
+						board board_with_2tile = after_state;
+						board_with_2tile.set(i, 1);						
+						finalest_reward += 0.9 * (this -> estimate(board_with_2tile)); 
 					}
 				}
 
 				if(empty_squares != 0)
-					move->set_value(immediate_reward + long_term_reward / empty_squares); // each square is equally likely to have a new popup tile
+					move->set_value(immediate_reward + finalest_reward / empty_squares); 
 
 				// update the cur best move, value() returns the esti
 				if (move->value() > best->value()) 
@@ -885,7 +871,7 @@ int main(int argc, const char* argv[]) {
 	result.open("result.txt");
 	// set the learning parameters
 	float alpha = 0.01;
-	size_t total = 100000;
+	size_t total = 1000;
 	unsigned seed;
 	__asm__ __volatile__ ("rdtsc" : "=a" (seed));
 	info << "alpha = " << alpha << std::endl;
