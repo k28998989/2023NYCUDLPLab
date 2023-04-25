@@ -25,14 +25,14 @@ def getmodels(modelType,pretrained=False):
             model.fc = nn.Linear(in_features=512, out_features = 5)
         else:
             model = models.resnet50(weights=ResNet50_Weights.IMAGENET1K_V1)
-            model.fc = nn.Linear(in_features=2048, out_features = 5)       
+            model.fc = nn.Linear(in_features=512, out_features = 5)       
     else:
         if modelType=='resnet18':
             model = models.resnet18()
             model.fc = nn.Linear(in_features=512, out_features = 5)
         else:
             model = models.resnet50()
-            model.fc = nn.Linear(in_features=2048, out_features = 5)
+            model.fc = nn.Linear(in_features=512, out_features = 5)
     return model
 
 def training(model,modelType,loader_train,loader_test,num_class):
