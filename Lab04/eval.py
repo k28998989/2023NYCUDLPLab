@@ -165,6 +165,7 @@ dataset_train=RetinopathyLoader('./data/new_train','train')
 loader_train=DataLoader(dataset=dataset_train,batch_size=batch,shuffle=True,num_workers=4)
 dataset_test=RetinopathyLoader('./data/new_test','test')
 loader_test=DataLoader(dataset=dataset_test,batch_size=batch,shuffle=False,num_workers=4)
+<<<<<<< HEAD
 print('resnet18 unpretrained')
 model_type='resnet18'
 #pretrained=True
@@ -185,6 +186,7 @@ confusion_matrix,_=evaluate(model,loader_test,num_classes)
 #"""
 #plot accuracy figure
 #"""
+
 
 #figure=plot(df,'Result Comparison('+p+' pretrained)',p)
 #figure.savefig('Result Comparison('+p+' pretrained HF.png')
