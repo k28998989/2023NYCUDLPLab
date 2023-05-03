@@ -110,7 +110,7 @@ def evaluate(model,loader_test,num_class):
     """
     
     confusion_matrix=np.zeros((num_class,num_class))
-    
+    model.to(device)
     with torch.set_grad_enabled(False):
         model.eval()
         correct=0
@@ -165,24 +165,28 @@ dataset_train=RetinopathyLoader('./data/new_train','train')
 loader_train=DataLoader(dataset=dataset_train,batch_size=batch,shuffle=True,num_workers=4)
 dataset_test=RetinopathyLoader('./data/new_test','test')
 loader_test=DataLoader(dataset=dataset_test,batch_size=batch,shuffle=False,num_workers=4)
+<<<<<<< HEAD
+print('resnet18 unpretrained')
 model_type='resnet18'
-pretrained=True
+#pretrained=True
 #model=getmodels(model_type,pretrained)
 model=models.resnet18()
-model.fc = nn.Linear(in_features=512, out_features=5)
-model.load_state_dict(torch.load(os.path.join('models','resnet18with pretrained.pt')))
+model.fc =nn.Linear(in_features=512,out_features=5)
+model.load_state_dict(torch.load(os.path.join('models','resnet18without pretrained.pt')))
 #df=training(model,model_type,loader_train,loader_test,num_classes)
 ##testing(model_type,loader_test,num_classes)
 confusion_matrix,_=evaluate(model,loader_test,num_classes)
-figure=plot_confusion_matrix(confusion_matrix)
-p='without'
-if pretrained:
-    p='with'
-figure.savefig(model_type+' (with '+p+' pretrained weights HF).png')
 
-"""
-plot accuracy figure
-"""
+#figure=plot_confusion_matrix(confusion_matrix)
+#p='without'
+#if pretrained:
+#    p='with'
+#figure.savefig(model_type+' (with '+p+' pretrained weights HF).png')
+
+#"""
+#plot accuracy figure
+#"""
+
 
 #figure=plot(df,'Result Comparison('+p+' pretrained)',p)
 #figure.savefig('Result Comparison('+p+' pretrained HF.png')

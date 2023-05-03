@@ -110,7 +110,7 @@ def evaluate(model,loader_test,num_class):
     """
     
     confusion_matrix=np.zeros((num_class,num_class))
-    
+    model.to(device)
     with torch.set_grad_enabled(False):
         model.eval()
         correct=0
@@ -165,10 +165,13 @@ dataset_train=RetinopathyLoader('./data/new_train','train')
 loader_train=DataLoader(dataset=dataset_train,batch_size=batch,shuffle=True,num_workers=4)
 dataset_test=RetinopathyLoader('./data/new_test','test')
 loader_test=DataLoader(dataset=dataset_test,batch_size=batch,shuffle=False,num_workers=4)
-model_type='resnet18'
+model_type='resnet50'
 pretrained=True
-model=getmodels(model_type,pretrained)
-df=training(model,model_type,loader_train,loader_test,num_classes)
+#model=getmodels(model_type,pretrained)
+model=models.resnet50()
+model.fc =nn.Linear(in_features=2048,out_features=5)
+model.load_state_dict(torch.load(os.path.join('models','resnet50with pretrained.pt')))
+#df=training(model,model_type,loader_train,loader_test,num_classes)
 ##testing(model_type,loader_test,num_classes)
 confusion_matrix,_=evaluate(model,loader_test,num_classes)
 figure=plot_confusion_matrix(confusion_matrix)
