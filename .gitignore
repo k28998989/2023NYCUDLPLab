@@ -2,3 +2,10 @@
 *.exe
 *.zip
 *.jpeg
+*.pth
+*.png
+train/
+test/
+validate/
+logs/
+__pycache__/

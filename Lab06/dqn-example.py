@@ -38,12 +38,22 @@ class Net(nn.Module):
     def __init__(self, state_dim=8, action_dim=4, hidden_dim=32):
         super().__init__()
         ## TODO ##
-        raise NotImplementedError
+        self.fc1 = nn.Sequential(
+            nn.Linear(state_dim, hidden_dim),
+            nn.ReLU(inplace=True)
+        )
+        self.fc2 = nn.Sequential(
+            nn.Linear(hidden_dim, hidden_dim),
+            nn.ReLU(inplace=True)
+        )
+        self.fc3 = nn.Linear(hidden_dim, action_dim)
 
     def forward(self, x):
         ## TODO ##
-        raise NotImplementedError
-
+        x = self.fc1(x)
+        x = self.fc2(x)
+        out = self.fc3(x)
+        return out
 
 class DQN:
     def __init__(self, args):
@@ -53,7 +63,7 @@ class DQN:
         self._target_net.load_state_dict(self._behavior_net.state_dict())
         ## TODO ##
         # self._optimizer = ?
-        raise NotImplementedError
+        self._optimizer = optim.Adam(self._behavior_net.parameters(), lr=args.lr)
         # memory
         self._memory = ReplayMemory(capacity=args.capacity)
 
@@ -67,7 +77,15 @@ class DQN:
     def select_action(self, state, epsilon, action_space):
         '''epsilon-greedy based on behavior network'''
          ## TODO ##
-        raise NotImplementedError
+        if random.random() < epsilon:
+            return action_space.sample()
+        
+        with torch.no_grad():
+            state = torch.tensor(state, device=self.device).view(1, -1)
+            outputs = self._behavior_net(state)
+            _, best_action = torch.max(outputs, 1)
+            return best_action.item()
+                
 
     def append(self, state, action, reward, next_state, done):
         self._memory.append(state, [action], [reward / 10], next_state,
@@ -85,13 +103,12 @@ class DQN:
             self.batch_size, self.device)
 
         ## TODO ##
-        # q_value = ?
-        # with torch.no_grad():
-        #    q_next = ?
-        #    q_target = ?
-        # criterion = ?
-        # loss = criterion(q_value, q_target)
-        raise NotImplementedError
+        q_value = self._behavior_net(state).gather(1, action.long())
+        with torch.no_grad():
+           q_next = torch.max(self._target_net(next_state), 1)[0].view(-1, 1)
+           q_target = reward + q_next * gamma * (1.0 - done)
+        criterion = nn.MSELoss()
+        loss = criterion(q_value, q_target)
         # optimize
         self._optimizer.zero_grad()
         loss.backward()
@@ -101,7 +118,8 @@ class DQN:
     def _update_target_network(self):
         '''update target network by copying from behavior network'''
         ## TODO ##
-        raise NotImplementedError
+        self._target_net.load_state_dict(self._behavior_net.state_dict())
+
 
     def save(self, model_path, checkpoint=False):
         if checkpoint:
@@ -174,11 +192,20 @@ def test(args, env, agent, writer):
         env.seed(seed)
         state = env.reset()
         ## TODO ##
-        # ...
-        #     if done:
-        #         writer.add_scalar('Test/Episode Reward', total_reward, n_episode)
-        #         ...
-        raise NotImplementedError
+        for t in itertools.count(start=1):
+            if args.render:
+                env.render()
+            action = agent.select_action(state, epsilon, action_space)
+            # execute action
+            next_state, reward, done, _ = env.step(action)
+            state = next_state
+            total_reward += reward
+
+            if done:
+                writer.add_scalar('Test/Episode Reward', total_reward, n_episode)
+                rewards.append(total_reward)
+                print(f'Episode: {n_episode}\t\Length: {t:3d}\tTotal Reward: {total_reward:.2f}')
+                break
     print('Average Reward', np.mean(rewards))
     env.close()
 

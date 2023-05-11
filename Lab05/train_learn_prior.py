@@ -1,8 +1,9 @@
 '''Usage
-python train_fixed_prior.py \
+python train_learned_prior.py \
 --kl_anneal_cyclical \
---log_dir ./logs/fp_epoch100_2_cycle
+--log_dir ./logs/lp_epoch100_2_cycle
 --cuda
+
 '''
 import argparse
 import itertools
@@ -22,7 +23,7 @@ from tqdm import tqdm
 from dataset import bair_robot_pushing_dataset
 from models.lstm import gaussian_lstm, lstm
 from models.vgg_64 import vgg_decoder, vgg_encoder
-from utils import init_weights, kl_criterion, plot_pred, plot_rec, finn_eval_seq, pred
+from utils import init_weights, kl_criterion_lp, plot_pred_lp, plot_rec, finn_eval_seq, pred_lp
 
 torch.backends.cudnn.benchmark = True
 
@@ -32,7 +33,7 @@ def parse_args():
     parser.add_argument('--lr', default=0.002, type=float, help='learning rate')
     parser.add_argument('--beta1', default=0.9, type=float, help='momentum term for adam')
     parser.add_argument('--batch_size', default=24, type=int, help='batch size')
-    parser.add_argument('--log_dir', default='./logs/lp', help='base directory to save logs')
+    parser.add_argument('--log_dir', default='./logs/fp', help='base directory to save logs')
     parser.add_argument('--model_dir', default='', help='base directory to save logs')
     parser.add_argument('--data_root', default='.', help='root directory for data')
     parser.add_argument('--optimizer', default='adam', help='optimizer to train with')
@@ -42,7 +43,7 @@ def parse_args():
     parser.add_argument('--tfr_start_decay_epoch', type=int, default=25, help='The epoch that teacher forcing ratio become decreasing')
     parser.add_argument('--tfr_decay_step', type=float, default=0, help='The decay step size of teacher forcing ratio (0 ~ 1)')
     parser.add_argument('--tfr_lower_bound', type=float, default=0.0, help='The lower bound of teacher forcing ratio for scheduling teacher forcing ratio (0 ~ 1)')
-    parser.add_argument('--kl_anneal_cyclical', default=False, action='store_true', help='use cyclical mode')
+    parser.add_argument('--kl_anneal_cyclical', default=True, action='store_true', help='use cyclical mode')
     parser.add_argument('--kl_anneal_ratio', type=float, default=2, help='The decay ratio of kl annealing')
     parser.add_argument('--kl_anneal_cycle', type=int, default=2, help='The number of cycle for kl annealing (if use cyclical mode)')
     parser.add_argument('--seed', default=1, type=int, help='manual seed')
@@ -50,6 +51,7 @@ def parse_args():
     parser.add_argument('--n_future', type=int, default=10, help='number of frames to predict')
     parser.add_argument('--n_eval', type=int, default=30, help='number of frames to predict at eval time')
     parser.add_argument('--rnn_size', type=int, default=256, help='dimensionality of hidden layer')
+    parser.add_argument('--prior_rnn_layers', type=int, default=1, help='number of layers')
     parser.add_argument('--posterior_rnn_layers', type=int, default=1, help='number of layers')
     parser.add_argument('--predictor_rnn_layers', type=int, default=2, help='number of layers')
     parser.add_argument('--z_dim', type=int, default=64, help='dimensionality of z_t')
@@ -65,6 +67,7 @@ def parse_args():
 def train(x, cond, modules, optimizer, kl_anneal, args):
     modules['frame_predictor'].zero_grad()
     modules['posterior'].zero_grad()
+    modules['prior'].zero_grad()
     modules['encoder'].zero_grad()
     modules['decoder'].zero_grad()
     mse_criterion = nn.MSELoss()
@@ -72,6 +75,7 @@ def train(x, cond, modules, optimizer, kl_anneal, args):
     # initialize the hidden state.
     modules['frame_predictor'].hidden = modules['frame_predictor'].init_hidden()
     modules['posterior'].hidden = modules['posterior'].init_hidden()
+    modules['prior'].hidden = modules['prior'].init_hidden()
     mse = 0
     kld = 0
     use_teacher_forcing = True if random.random() < args.tfr else False
@@ -86,10 +90,11 @@ def train(x, cond, modules, optimizer, kl_anneal, args):
             h = h_seq[i-1][0]
 
         z_t, mu, logvar = modules['posterior'](h_target)
+        _, mu_p, logvar_p = modules['prior'](h)
         h_pred = modules['frame_predictor'](torch.cat([cond[i-1], h, z_t], 1))
         x_pred = modules['decoder']([h_pred, skip])
         mse += mse_criterion(x_pred, x[i])
-        kld += kl_criterion(mu, logvar, args)
+        kld += kl_criterion_lp(mu, logvar, mu_p, logvar_p, args)
         if not use_teacher_forcing :
             h_seq[i] = modules['encoder'](x_pred)
 
@@ -161,8 +166,8 @@ def main():
         args.log_dir = '%s/continued' % args.log_dir
         start_epoch = saved_model['last_epoch']
     else:
-        name = 'rnn_size=%d-predictor-posterior-rnn_layers=%d-%d-n_past=%d-n_future=%d-lr=%.4f-g_dim=%d-z_dim=%d-last_frame_skip=%s-beta=%.7f'\
-            % (args.rnn_size, args.predictor_rnn_layers, args.posterior_rnn_layers, args.n_past, args.n_future, args.lr, args.g_dim, args.z_dim, args.last_frame_skip, args.beta)
+        name = 'rnn_size=%d-predictor-posterior-prior-rnn_layers=%d-%d-%d-n_past=%d-n_future=%d-lr=%.4f-g_dim=%d-z_dim=%d-last_frame_skip=%s-beta=%.7f'\
+            % (args.rnn_size, args.predictor_rnn_layers, args.posterior_rnn_layers, args.prior_rnn_layers, args.n_past, args.n_future, args.lr, args.g_dim, args.z_dim, args.last_frame_skip, args.beta)
 
         args.log_dir = '%s/%s' % (args.log_dir, name)
         niter = args.niter
@@ -189,11 +194,15 @@ def main():
     if args.model_dir != '':
         frame_predictor = saved_model['frame_predictor']
         posterior = saved_model['posterior']
+        prior = saved_model['prior']
+        
     else:
         frame_predictor = lstm(args.g_dim+args.z_dim+7, args.g_dim, args.rnn_size, args.predictor_rnn_layers, args.batch_size, device)
         posterior = gaussian_lstm(args.g_dim, args.z_dim, args.rnn_size, args.posterior_rnn_layers, args.batch_size, device)
+        prior = gaussian_lstm(args.g_dim, args.z_dim, args.rnn_size, args.prior_rnn_layers, args.batch_size, device)
         frame_predictor.apply(init_weights)
         posterior.apply(init_weights)
+        prior.apply(init_weights)
             
     if args.model_dir != '':
         decoder = saved_model['decoder']
@@ -207,6 +216,7 @@ def main():
     # --------- transfer to device ------------------------------------
     frame_predictor.to(device)
     posterior.to(device)
+    prior.to(device)
     encoder.to(device)
     decoder.to(device)
 
@@ -240,13 +250,14 @@ def main():
     else:
         raise ValueError('Unknown optimizer: %s' % args.optimizer)
 
-    params = list(frame_predictor.parameters()) + list(posterior.parameters()) + list(encoder.parameters()) + list(decoder.parameters())
+    params = list(frame_predictor.parameters()) + list(posterior.parameters()) + list(prior.parameters()) + list(encoder.parameters()) + list(decoder.parameters())
     optimizer = args.optimizer(params, lr=args.lr, betas=(args.beta1, 0.999))
     kl_anneal = kl_annealing(args)
 
     modules = {
         'frame_predictor': frame_predictor,
         'posterior': posterior,
+        'prior': prior,
         'encoder': encoder,
         'decoder': decoder,
     }
@@ -259,6 +270,7 @@ def main():
     for epoch in range(start_epoch, start_epoch + niter):
         frame_predictor.train()
         posterior.train()
+        prior.train()
         encoder.train()
         decoder.train()
 
@@ -302,6 +314,7 @@ def main():
         encoder.eval()
         decoder.eval()
         posterior.eval()
+        prior.eval()
 
         if epoch % 5 == 0 or epoch == start_epoch+niter-1:
             psnr_list = []
@@ -313,7 +326,7 @@ def main():
                     validate_seq, validate_cond = next(validate_iterator)
                 validate_seq = validate_seq.permute(1, 0, 2, 3 ,4).to(device)
                 validate_cond = validate_cond.permute(1, 0, 2).to(device)
-                pred_seq = pred(validate_seq, validate_cond, modules, args, device)
+                pred_seq = pred_lp(validate_seq, validate_cond, modules, args, device)
                 _, _, psnr = finn_eval_seq(validate_seq[args.n_past:], pred_seq[args.n_past:])
                 psnr_list.append(psnr)
                 
@@ -331,6 +344,7 @@ def main():
                     'decoder': decoder,
                     'frame_predictor': frame_predictor,
                     'posterior': posterior,
+                    'prior': prior,
                     'args': args,
                     'last_epoch': epoch},
                     '%s/model.pth' % args.log_dir)
@@ -343,7 +357,7 @@ def main():
                 validate_seq, validate_cond = next(validate_iterator)
             validate_seq = validate_seq.permute(1, 0, 2, 3 ,4).to(device)
             validate_cond = validate_cond.permute(1, 0, 2).to(device)
-            plot_pred(validate_seq, validate_cond, modules, epoch, args)
+            plot_pred_lp(validate_seq, validate_cond, modules, epoch, args)
             plot_rec(validate_seq, validate_cond, modules, epoch, args)
 
 if __name__ == '__main__':
