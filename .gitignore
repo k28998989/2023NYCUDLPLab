@@ -7,5 +7,4 @@
 train/
 test/
 validate/
-logs/
 __pycache__/
