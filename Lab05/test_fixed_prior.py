@@ -41,7 +41,8 @@ parser.add_argument('--N', type=int, default=3, help='number of samples')
 
 
 args = parser.parse_args()
-args.model_path='./logs/lp/rnn_size=256-predictor-posterior-rnn_layers=2-1-n_past=2-n_future=10-lr=0.0020-g_dim=128-z_dim=64-last_frame_skip=False-beta=0.0001000/model.pth'
+#args.model_path='./logs/lp/rnn_size=256-predictor-posterior-rnn_layers=2-1-n_past=2-n_future=10-lr=0.0020-g_dim=128-z_dim=64-last_frame_skip=False-beta=0.0001000/model.pth'
+args.model_path='./logs/fp/rnn_size=256-predictor-posterior-prior-rnn_layers=2-1-1-n_past=2-n_future=10-lr=0.0020-g_dim=128-z_dim=64-last_frame_skip=False-beta=0.0001000/model.pth'
 args.log_dir='./logs'
 os.makedirs('%s' % args.log_dir, exist_ok=True)
 

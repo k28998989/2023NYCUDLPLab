@@ -125,11 +125,9 @@ class kl_annealing():
                 while(v<=1.0 and int(i+c*period)<args.niter):
                     self.L[int(i+c*period)] = v
                     v += step
-                    i += 1
-    
+                    i += 1    
     def update(self):
-        self.i += 1
-    
+        self.i += 1    
     def get_beta(self):
         L = self.L[self.i]
         # self.update()

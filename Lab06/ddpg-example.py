@@ -116,7 +116,7 @@ class DDPG:
     def select_action(self, state, noise=True):
         '''based on the behavior (actor) network and exploration noise'''
         ## TODO ##
-         with torch.no_grad():
+        with torch.no_grad():
             state = torch.tensor(state, device=self.device).view(1, -1)
             outputs = self._actor_net(state)
             exploration_noise = torch.tensor(self._action_noise.sample(), device=self.device).view(1, -1)

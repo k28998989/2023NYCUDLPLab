@@ -18,7 +18,7 @@ from atari_wrappers import wrap_deepmind, make_atari
 class ReplayMemory(object):
     ## TODO ##
     def __init__(self):
-        
+        self.Buffer=[]
 
 
     def push(self, state, action, reward, done):
@@ -83,6 +83,7 @@ class DQN:
 
         ## TODO ##
         """Initialize replay buffer"""
+        self.memory=ReplayMemory()
         #self._memory = ReplayMemory(...)
 
         ## config ##
